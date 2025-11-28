@@ -1,0 +1,148 @@
+llm:
+  api_key: ${LLM_API_KEY}
+  base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+  model_name: qwen3-max
+  system_prompt: 你是一个知识图谱结构化抽取助手。仅输出严格的JSON，禁止任何非JSON文本。
+  stream: true
+  thinking: false
+corpora:
+  mode: single
+  default: xiyouji
+  base_dir: data
+  items:
+    xiyouji:
+      name: 西游记
+      folder: 西游记
+      raw_file: xiyouji.txt
+run:
+  limit_count: 5
+  timeout_ms: 20000
+naming:
+  mode: TITLE_PREFIXED
+results:
+  use_model_suffix: false
+  overwrite: true
+relations:
+  allowed: [师徒, 位于, 使用, 持有, 敌对, 别名, 姓氏, 法名, 封号, 本体, 源于, 亲属, 隶属]
+  precedence: [姓氏, 法名, 封号, 别名]
+  patterns:
+    - relation: 姓氏
+      include: ["姓", "其姓为", "复姓"]
+      exclude: []
+    - relation: 法名
+      include: ["法名", "起法名", "赐法名"]
+      exclude: []
+    - relation: 封号
+      include: ["封", "赐", "授", "册封", "加封"]
+      exclude: []
+    - relation: 别名
+      include: ["又名", "别名", "称作", "称为", "自称","我乃"]
+      exclude: []
+  type_constraints:
+    姓氏: ["Person-Text"]
+    法名: ["Person-Text"]
+    封号: ["Person-Title"]
+  alias_relations: ["同义词","别名","同义词合并","别称","又名","称作","称为","自称"]
+fusion:
+  enabled: true
+  resolution_mode: pre_ingest
+  key_format: "{head}|{tail}|{relation}"
+  confidence_merge: max
+  evidence_merge: union
+  conflict_resolution: precedence
+  keep_history: true
+  group_by: head_tail
+  chapter_strategy: first
+neo4j:
+  uri: neo4j://127.0.0.1:7687
+  user: neo4j
+  password: ${NEO4J_PASSWORD}
+prompts:
+  selected: relations_plus
+  selection_mode: static
+  selectors:
+    length_threshold: 8000
+    dialogue_ratio_threshold: 0.50
+  dynamic:
+    override_to: events_relations
+  templates:
+    - id: relations_basic
+      description: 仅抽取实体与核心关系
+      scope: basic
+      entity_types: [Person, Location, Item, Spell, Organization]
+      relation_types: [师徒, 敌对, 位于, 持有, 使用]
+      instructions: |
+        仅输出 JSON 列表；严格遵循给定类型枚举；避免Markdown；若不确定请忽略。
+      output_schema: relation_list
+      variables:
+        language: zh
+        book: xiyouji
+        synonyms_map:
+          行者: 孙悟空
+          大圣: 孙悟空
+          美猴王: 孙悟空
+          齊天大聖: 孙悟空
+          玄奘: 唐僧
+          唐三藏: 唐僧
+          老君: 太上老君
+        alias_rules:
+          - strip:大圣
+          - strip:行者
+          - regex:(^“|”$)=
+    - id: relations_plus
+      description: 扩展关系范围并输出证据与置信度
+      scope: plus
+      entity_types: [Person, Location, Item, Spell, Organization, Deity]
+      relation_types: [师徒, 敌对, 位于, 持有, 使用, 亲属, 隶属, 封号, 别名]
+      instructions: |
+        输出 JSON；每条关系包含 evidence(原文片段) 与 confidence(0-1)。避免Markdown；若不确定请忽略。
+      output_schema: relation_with_meta
+      variables:
+        language: zh
+        book: xiyouji
+        synonyms_map:
+          行者: 孙悟空
+          大圣: 孙悟空
+          美猴王: 孙悟空
+          齊天大聖: 孙悟空
+          大聖: 孙悟空
+          玄奘: 唐僧
+          唐三藏: 唐僧
+          老君: 太上老君
+          玉皇大帝: 玉帝
+          玉皇上帝: 玉帝
+          托塔李天王: 李靖
+          李天王: 李靖
+        alias_rules:
+          - strip:大圣
+          - strip:行者
+          - regex:(^“|”$)=
+    - id: events_relations
+      description: 同时抽取事件与关系
+      scope: events
+      entity_types: [Person, Location, Item, Spell, Organization]
+      relation_types: [师徒, 敌对, 位于, 持有, 使用]
+      instructions: |
+        先抽取事件(类型、时间、地点、参与者角色)，再抽取关系；统一 JSON 输出；避免Markdown。
+      output_schema: event_plus_relation
+      variables:
+        language: zh
+        book: xiyouji
+        synonyms_map:
+          行者: 孙悟空
+          大圣: 孙悟空
+          美猴王: 孙悟空
+          齊天大聖: 孙悟空
+          大聖: 孙悟空
+          玄奘: 唐僧
+          唐三藏: 唐僧
+          老君: 太上老君
+          玉皇大帝: 玉帝
+          玉皇上帝: 玉帝
+          托塔李天王: 李靖
+          李天王: 李靖
+        alias_rules:
+          - strip:大圣
+          - strip:行者
+          - regex:(^“|”$)=
+ 
