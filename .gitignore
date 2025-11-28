@@ -1,2 +1,13 @@
 .idea/
 *.iml
+__pycache__/
+*.pyc
+*.pyo
+**/__pycache__/
+logs/
+venv/
+*.log
+dist/
+*/__pycache__
+demo/
+.trae
